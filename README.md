@@ -1,6 +1,11 @@
 # Simulador Balístico 3D
+> ⚠️ **Propósito:** O projeto foi desenvolvido originalmente como parte prática para a disciplina de Computação Gráfica.
 
-Um ambiente de simulação de tiro em primeira pessoa (FPS) executado nativamente no navegador. O projeto foi desenvolvido com foco no estudo de balística computacional e geração procedural de cenários, explorando a integração entre a pipeline de renderização do **Three.js** e o motor de simulação de corpos rígidos do **Cannon.js**.
+O objetivo principal era aplicar fundamentos avançados de renderização 3D na Web e aprender boas práticas de integração entre bibliotecas gráficas e motores de física. O simulador recria um estande de tiro com uma proposta técnica rigorosa: ir além da movimentação tradicional de um FPS arcade e exigir que o jogador lide com cálculos reais de balística, gravidade e física de corpos rígidos operando nativamente no navegador.
+
+---
+
+Um ambiente de simulação em primeira pessoa focado no estudo de balística computacional e geração procedural de cenários, explorando a integração entre a pipeline de renderização do **Three.js** e a simulação física do **Cannon.js**.
 
 <div align="center">
   <img src="https://github.com/user-attachments/assets/6fa663ab-84bd-4789-a2fc-679b62bfa43a" width="45%" />
