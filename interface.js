@@ -55,27 +55,33 @@ export function iniciarInterface(config, world, setCameraModo) {
     
     // Adicionamos o .onChange na gravidade para atualizar o mundo físico na hora
     pastaFisica.add(config, 'gravity', 0, 20).name('Gravidade (m/s²)').step(0.1).onChange(v => {
-        if(world) world.gravity.set(0, -v, 0);
+        if (world) world.gravity.set(0, -v, 0);
     });
-    
-    pastaFisica.add(config, 'wind', -20, 20).name('Vento (m/s)').step(1);
 
-    const pastaVisual = gui.addFolder('Visualização');
-    
-    // Objeto temporário para as opções que não existem no config dele
+    const pastaVisual = gui.addFolder('Opções');
+
     const extras = {
         tipoProjetil: 'Pistola',
         corRastro: '#ffffff',
         plotarGrafico: true,
+        graficoComQuique: false,
+        Alvos: true,
         modoCamera: 'Livre'
     };
+    window.Alvos = true;
+    window.plotarGrafico = true;
+    window.graficoComQuique = false;
 
-    pastaVisual.add(extras, 'modoCamera', ['Livre', 'Lateral']).name('Modo de Câmera').onChange(val => {
-        setCameraModo(val);
+    pastaVisual.add(extras, 'plotarGrafico').name('Plotar Gráfico').onChange(val => {
+        window.plotarGrafico = val;
     });
-
-    pastaVisual.add(extras, 'tipoProjetil', ['Pistola', 'Canhão']).name('Arma');
-    pastaVisual.add(extras, 'plotarGrafico').name('Plotar Gráfico');
+    pastaVisual.add(extras, 'graficoComQuique').name('Quicar no gráfico').onChange(val => {
+    window.graficoComQuique = val;
+    });
+    pastaVisual.add(extras, 'Alvos').name('Alvos').onChange(val => {
+        window.Alvos = val;
+        if (window.recarregarChunks) window.recarregarChunks();
+    });
 
     const acoes = {
     resetar: function() {
@@ -86,14 +92,16 @@ export function iniciarInterface(config, world, setCameraModo) {
 
         extras.tipoProjetil = 'Pistola';
         extras.corRastro = '#ffffff';
+        extras.Alvos = true;
         extras.plotarGrafico = true;
+        extras.graficoComQuique = false;
         extras.modoCamera = 'Livre';
 
-        if(typeof world !== 'undefined' && world) world.gravity.set(0, -9.81, 0);
-        
-        // Se a função setCameraModo existir no seu código, pode manter:
-        if(typeof setCameraModo === 'function') setCameraModo('Livre');
+        window.plotarGrafico = true;
+        window.graficoComQuique = false;
+        window.Alvos = true;
 
+        if(typeof world !== 'undefined' && world) world.gravity.set(0, -9.81, 0);
         // ==========================================
         // Chama a ponte que arruma tudo lá no main.js
         if (typeof window.forcarResetDaCena === 'function') {

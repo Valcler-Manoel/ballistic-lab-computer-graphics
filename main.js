@@ -23,6 +23,10 @@ let fireSound;
 let trajectorySamples = [];
 let trajectoryTimer = 0;
 let hitAlvo = false;
+let bulletYaw = 0;
+let bulletPitch = 0;
+let posicaoAlvoAcertado = null;
+const bulletRadius = 5;
 
 const flightQuaternion = new THREE.Quaternion();
 
@@ -84,30 +88,23 @@ const pathMaterial = new THREE.MeshStandardMaterial({
 
 async function preloadChunkModels() {
 
-  // Crie o objeto se ele não existir solto no topo do código
   if (typeof window.modelTemplates === 'undefined') window.modelTemplates = {};
 
-  // Carrega o material e depois o objeto
   const mtlLoader = new MTLLoader();
-  mtlLoader.setPath('./assets/45/'); // MUDE AQUI PARA A SUA PASTA
+  mtlLoader.setPath('./assets/45/');
 
   mtlLoader.load('alvo1.mtl', (materials) => {
     materials.preload();
 
     const objLoader = new OBJLoader();
     objLoader.setMaterials(materials);
-    objLoader.setPath('./assets/45/'); // MUDE AQUI TAMBÉM
+    objLoader.setPath('./assets/45/');
 
     objLoader.load('alvo1obj.obj', (object) => {
-      // Centraliza o modelo matematicamente para o Cannon.js entender
       const box = new THREE.Box3().setFromObject(object);
       const center = box.getCenter(new THREE.Vector3());
       object.position.sub(center);
-
-      // Ajuste a escala se o modelo vier gigante ou minúsculo
       object.scale.set(0.1, 0.1, 0.1);
-
-      // Salva na memória global para clonar depois
       modelTemplates.alvo = object;
     });
   });
@@ -121,27 +118,16 @@ async function preloadChunkModels() {
 
       mtlLoader.load('alvo1.mtl', (materials) => {
         materials.preload();
-
         const objLoader = new OBJLoader();
         objLoader.setMaterials(materials);
         objLoader.setPath('./assets/45/');
-
         objLoader.load('alvo1obj.obj', (object) => {
-
-          // 1. Calcula o centro enquanto o objeto ainda é gigante
           const box = new THREE.Box3().setFromObject(object);
           const center = box.getCenter(new THREE.Vector3());
-
-          // 2. Move o objeto para ficar perfeitamente no eixo zero
           object.position.set(-center.x, -box.min.y, -center.z);
-
-          // 3. Cria o "Pacote Invisível" e coloca o objeto dentro
           const pacote = new THREE.Group();
           pacote.add(object);
-
-          // 4. Encolhe o PACOTE (isso preserva o centro matematicamente perfeito)
           pacote.scale.set(0.1, 0.1, 0.1);
-
           modelTemplates.alvo = pacote;
           resolve();
         });
@@ -150,7 +136,6 @@ async function preloadChunkModels() {
   };
 
   const loader = new GLTFLoader();
-
   const models = [
     { key: "ground", path: "./assets/models/ground_grass.glb" },
     { key: "plant", path: "./assets/models/plant_flatShort.glb" },
@@ -203,17 +188,11 @@ function seedDecorations(chunkGroup) {
 
         localX = (Math.random() * 2 - 1) * half;
         localZ = (Math.random() * 2 - 1) * half;
-
         const worldPosX = chunkGroup.position.x + localX;
         const worldPosZ = chunkGroup.position.z + localZ;
-
         const corridorWidth = 30;
-        const corridorLength = 5000;
         const spawnLineX = -40;
-        const insideCorridor =
-          Math.abs(worldPosX - spawnLineX) < corridorWidth &&
-          worldPosZ > -corridorLength &&
-          worldPosZ < 100;
+        const insideCorridor = Math.abs(worldPosX - spawnLineX) < corridorWidth;
 
         if (!insideCorridor) {
           validPosition = true;
@@ -231,7 +210,6 @@ function seedDecorations(chunkGroup) {
       clone.scale.setScalar(
         scaleRange[0] + Math.random() * (scaleRange[1] - scaleRange[0]),
       );
-
       chunkGroup.add(clone);
     }
   }
@@ -298,37 +276,25 @@ function buildChunk(chunkX, chunkZ) {
 
 
   seedDecorations(group);
-  // ==========================================
-  // GERADOR DE ALVOS (Adaptado para THREE.Group)
-  // ==========================================
-  // Inicia um array no userData para guardar a física e apagar depois
+  group.userData.bodies = [];
   group.userData.bodies = [];
 
-  // Verifica se o chunk atual está na mesma linha (X) da arma do jogador.
-  // Só gera o alvo se a distância lateral for menor que a metade do chunk.
-  // ==========================================
-  // GERADOR DE ALVOS (Dentro de buildChunk)
-  // ==========================================
-  group.userData.bodies = [];
-
-  if (Math.abs(config.startX - worldX) < CHUNK_SIZE / 2) {
-
-    const distanciasAlvos = [worldZ - 100, worldZ - 200];
-
+if (window.Alvos !== false && Math.abs(config.startX - worldX) < CHUNK_SIZE / 2) {
+    const distanciasAlvo = [250, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000,
+    5500, 6000, 6500, 7000, 7500, 8000, 8500, 9000, 9500, 10000, 10500, 11000, 11500, 12000,
+    12500, 13000, 13500, 14000, 14500, 15000, 15500, 16000, 16500, 17000, 17500, 18000, 18500,
+    19000, 19500, 20000, 20500, 21000, 21500, 22000, 22500, 23000, 23500, 24000, 24500, 25000,
+    25500, 26000, 26500, 27000, 27500, 28000, 28500, 29000, 29500, 30000];
+    const distanciasAlvos = distanciasAlvo.filter(d => 
+    Math.floor(d / CHUNK_SIZE) === Math.floor(-worldZ / CHUNK_SIZE)).map(d => -d);
     distanciasAlvos.forEach(z => {
-      if (z > -80) return;
-
-      // 1. VISUAL: Modelo em pé e com pivot centralizado
+      if (z > -10) return;
       let meshAlvo;
 
       if (modelTemplates.alvo) {
         meshAlvo = new THREE.Group();
         const modeloImportado = modelTemplates.alvo.clone(true);
-
-        // Levanta o modelo
         modeloImportado.rotation.x = -Math.PI / 2;
-
-        // Centraliza o pivot no meio do objeto
         const box = new THREE.Box3().setFromObject(modeloImportado);
         const center = new THREE.Vector3();
         box.getCenter(center);
@@ -341,39 +307,32 @@ function buildChunk(chunkX, chunkZ) {
         meshAlvo = new THREE.Mesh(fallbackGeo, fallbackMat);
         meshAlvo.geometry.center();
       }
-
-      // ==========================================
-      // PAINEL COMPLETO DE CONTROLE (Tamanho, Posição e Angulação)
-      // ==========================================
-      const larguraHitbox = 7.0;       // X: Estica para os lados
-      const alturaHitbox = 10.0;        // Y: Estica para cima/baixo
-      const profundidadeHitbox = 0.19;  // Z: Espessura da placa
-
-      const alturaBaseNoChao = 2.5;    // Altura onde a imagem do alvo fica no jogo
-
-      const ajusteAlturaHitbox = 0;    // Sobe ou desce SÓ a física
-      const ajusteProfundidade = 0.2;  // Empurra a física pra frente ou pra trás
-
-      const grausInclinacao = -25;     // Inclinação do alvo (ex: -10 graus)
-      // ==========================================
-
-      // Coloca o visual no mapa
+      const alturaBaseNoChao = 2.5;
+      const ajusteAlturaHitbox = -2;
+      const ajusteProfundidade = 0.1;
+      const grausInclinacao = -25;
       meshAlvo.position.set(config.startX - worldX, alturaBaseNoChao, z - worldZ);
       group.add(meshAlvo);
 
-      // 2. FÍSICA: Usando os controles manuais
-      const halfExtents = new CANNON.Vec3(larguraHitbox / 2, alturaHitbox / 2, profundidadeHitbox / 2);
-      const targetShape = new CANNON.Box(halfExtents);
+const boxSize = new THREE.Box3().setFromObject(meshAlvo);
+const tamanho = new THREE.Vector3();
+boxSize.getSize(tamanho);
+
+
+const larguraHitbox = tamanho.x * 0.85;
+const alturaHitbox = tamanho.y * 1.50;
+const profundidadeHitbox = tamanho.z * 0.5;
+
+console.log('Hitbox calculada:', larguraHitbox, alturaHitbox, profundidadeHitbox);
+
+const halfExtents = new CANNON.Vec3(larguraHitbox / 2, alturaHitbox / 2, profundidadeHitbox / 2);
+const targetShape = new CANNON.Box(halfExtents);
 
       const targetBody = new CANNON.Body({
         mass: 0,
         shape: targetShape,
       });
-
-      // Aplica os offsets de posição globalmente
       targetBody.position.set(config.startX, alturaBaseNoChao + ajusteAlturaHitbox, z + ajusteProfundidade);
-
-      // Aplica a inclinação na física
       const inclinacaoRadianos = grausInclinacao * (Math.PI / 180);
       targetBody.quaternion.setFromEuler(inclinacaoRadianos, 0, 0);
 
@@ -382,17 +341,6 @@ function buildChunk(chunkX, chunkZ) {
 
       world.addBody(targetBody);
       group.userData.bodies.push(targetBody);
-
-      // 3. MODO RAIO-X: Acompanha 100% a física
-      const helperGeo = new THREE.BoxGeometry(larguraHitbox, alturaHitbox, profundidadeHitbox);
-      const helperMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true });
-      const helperMesh = new THREE.Mesh(helperGeo, helperMat);
-
-      // Aplica os mesmos offsets e rotação do Cannon para o Three.js
-      helperMesh.position.set(config.startX - worldX, alturaBaseNoChao + ajusteAlturaHitbox, (z - worldZ) + ajusteProfundidade);
-      helperMesh.rotation.x = inclinacaoRadianos;
-
-      group.add(helperMesh);
     });
   }
   group.userData.x = chunkX;
@@ -420,62 +368,57 @@ function spawnChunk(chunkX, chunkZ) {
 // ─── UPDATE DOS CHUNKS ───────────────────────────────────────────────────────
 
 function updateChunks() {
-  const camX = Math.floor(camera.position.x / CHUNK_SIZE);
-  const camZ = Math.floor(camera.position.z / CHUNK_SIZE);
+    const camX = Math.floor(camera.position.x / CHUNK_SIZE);
+    const camZ = Math.floor(camera.position.z / CHUNK_SIZE);
 
-  // REMOVE CHUNKS DISTANTES
-
-  for (let i = activeChunks.length - 1; i >= 0; i--) {
-    const chunk = activeChunks[i];
-
-    const distX = Math.abs(chunk.userData.x - camX);
-    const distZ = Math.abs(chunk.userData.z - camZ);
-
-    if (distX > VIEW_RADIUS || distZ > VIEW_RADIUS) {
-      scene.remove(chunk);
-      if (chunk.userData.bodies) {
-        chunk.userData.bodies.forEach(body => world.removeBody(body));
-      }
-      chunk.traverse((child) => {
-        if (!child.isMesh) return;
-
-        child.geometry?.dispose();
-
-        if (Array.isArray(child.material)) {
-          child.material.forEach((m) => m.dispose());
-        } else {
-          child.material?.dispose();
+    if (!isFiring) {
+        for (let i = activeChunks.length - 1; i >= 0; i--) {
+            const chunk = activeChunks[i];
+            const muitoAtras = chunk.userData.z > camZ + 8;
+            if (muitoAtras) {
+                scene.remove(chunk);
+                if (chunk.userData.bodies) {
+                    chunk.userData.bodies.forEach(body => {
+                        world.removeBody(body);
+                        if (body.helperMesh) scene.remove(body.helperMesh);
+                    });
+                }
+                chunk.traverse((child) => {
+                    if (!child.isMesh) return;
+                    child.geometry?.dispose();
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => m.dispose());
+                    } else {
+                        child.material?.dispose();
+                    }
+                });
+                activeChunks.splice(i, 1);
+            }
         }
-      });
-
-      activeChunks.splice(i, 1);
     }
-  }
 
-  // CRIA NOVOS CHUNKS
+    const raioLateral = 7;
+    const raioFrente = 10;
+    const raioAtras = 2;
 
-  for (let x = -VIEW_RADIUS; x <= VIEW_RADIUS; x++) {
-    for (let z = -VIEW_RADIUS; z <= VIEW_RADIUS; z++) {
-      const targetX = camX + x;
-      const targetZ = camZ + z;
+    for (let x = -raioLateral; x <= raioLateral; x++) {
+        for (let z = -raioFrente; z <= raioAtras; z++) {
+            const targetX = camX + x;
+            const targetZ = camZ + z;
 
-      const exists = activeChunks.some(
-        (chunk) => chunk.userData.x === targetX && chunk.userData.z === targetZ,
-      );
+            const exists = activeChunks.some(
+                chunk => chunk.userData.x === targetX && chunk.userData.z === targetZ
+            );
 
-      if (!exists) {
-        spawnChunk(targetX, targetZ);
-      }
+            if (!exists) spawnChunk(targetX, targetZ);
+        }
     }
-  }
 }
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 
 async function init() {
   scene = new THREE.Scene();
-
-  // SKY DO PRIMEIRO CÓDIGO
-
   const sky = new Sky();
   sky.scale.setScalar(450000);
   scene.add(sky);
@@ -585,23 +528,17 @@ async function init() {
   });
 
   groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+  groundBody.position.set(0, 0.1, 0);
 
   world.addBody(groundBody);
 
   // ─── SISTEMA PROCEDURAL ────────────────────────────────────────────────
 
-  // ─── SISTEMA PROCEDURAL ────────────────────────────────────────────────
-
-  await preloadChunkModels(); // Carrega o chão e árvores (sua função original)
-  await preloadAlvo();        // Carrega o alvo (a função nova)
-
-  updateChunks();             // Só gera o mapa depois que TUDO estiver carregado
-
-  // ─── LOADERS ───────────────────────────────────────────────────────────
-
+  await preloadChunkModels();
+  await preloadAlvo();
+  updateChunks();
   loadModel();
   loadPistol();
-
   animate();
 }
 
@@ -767,51 +704,70 @@ function loadModel() {
 
       projectileBody = new CANNON.Body({
         mass: 1,
-
         shape: new CANNON.Box(new CANNON.Vec3(1.25, 0.4, 0.4)),
-
         material: physicsMaterial,
-
-        linearDamping: 0.1,
+        linearDamping: 0.05,
         angularDamping: 0.5,
-
         fixedRotation: true,
-
         collisionFilterGroup: 1,
         collisionFilterMask: -1,
       });
+      projectileBody.ccdSpeedThreshold = 1;
+      projectileBody.ccdIterations = 10;
 
       // Sensor de Colisão Único
-      projectileBody.addEventListener("collide", (e) => {
+    projectileBody.addEventListener("collide", (e) => {
 
-        // 1. Checa se bateu no chão
-        if (e.body === groundBody && !hasBounced) {
-          hasBounced = true;
-          projectileBody.fixedRotation = false;
-          projectileBody.updateMassProperties();
+    // chão
+    if (e.body === groundBody && !hasBounced) {
+        hasBounced = true;
+        projectileBody.fixedRotation = false;
+        projectileBody.updateMassProperties();
+    }
+
+    // substitui o bloco do alvo pelo novo
+    if (e.body.isAlvo && !e.body.jaFoiAcertado) {
+        e.body.jaFoiAcertado = true;
+        hitAlvo = true;
+
+        
+
+        const impactSpeed = new THREE.Vector3(
+            projectileBody.velocity.x,
+            projectileBody.velocity.y,
+            projectileBody.velocity.z
+        ).length();
+
+        trajectorySamples.push({
+            t: clock.elapsedTime,
+            z: e.body.position.z,
+            y: e.body.position.y,
+            spd: impactSpeed
+        });
+
+        if (impactSpeed > 40) {
+            projectile.visible = false;
+            projectileBody.velocity.set(0, 0, 0);
+            projectileBody.angularVelocity.set(0, 0, 0);
+            projectileBody.sleep();
+            projectileBody.position.set(0, -100, 0);
+            posicaoAlvoAcertado = new THREE.Vector3(
+            e.body.position.x,
+            e.body.position.y,
+            e.body.position.z
+    );
+    cameraTarget = "alvo";
+
         }
 
-        // 2. Checa se bateu no alvo
-        if (e.body.isAlvo && !e.body.jaFoiAcertado) {
-          e.body.jaFoiAcertado = true;
-          hitAlvo = true;
-          // Percorre todas as partes do modelo 3D
-          e.body.meshVisual.traverse((child) => {
+        e.body.meshVisual.traverse((child) => {
             if (child.isMesh) {
-              // Clona o material apenas deste alvo específico para não afetar os outros
-              child.material = child.material.clone();
-
-              // Pinta de verde (você pode usar emissive se a textura for muito escura)
-              child.material.color.setHex(0x00ff00);
-
-              // Se quiser que ele brilhe no escuro quando acertar, descomente abaixo:
-              // child.material.emissive.setHex(0x00ff00);
+                child.material = child.material.clone();
+                child.material.color.setHex(0x00ff00);
             }
-          });
-          console.log("🎯 ALVO ABATIDO! Distância: " + Math.abs(e.body.position.z).toFixed(0) + " metros!");
-        }
-
-      });
+        });
+    }
+});
 
       world.addBody(projectileBody);
 
@@ -824,33 +780,10 @@ function animate() {
   requestAnimationFrame(animate);
 
   const delta = clock.getDelta();
-
-  // ─────────────────────────────────────────────
-  // STEP FÍSICO
-  // ─────────────────────────────────────────────
-
   world.step(1 / 60, delta, 10);
-
-  // ─────────────────────────────────────────────
-  // UPDATE DOS CHUNKS
-  // ─────────────────────────────────────────────
-
   updateChunks();
-
-  // ─────────────────────────────────────────────
-  // PROJÉTIL
-  // ─────────────────────────────────────────────
-
   if (projectile && projectileBody) {
-    // posição física normal
-    // SEM smoothing na bala
-
     projectile.position.copy(projectileBody.position);
-
-    // ─────────────────────────────────────────
-    // ROTAÇÃO EM VOO
-    // ─────────────────────────────────────────
-
     if (!hasBounced) {
       const velocityVector = new THREE.Vector3(
         projectileBody.velocity.x,
@@ -860,24 +793,13 @@ function animate() {
 
       if (velocityVector.lengthSq() > 0.0001) {
         const tempLooker = new THREE.Object3D();
-
         tempLooker.position.copy(projectile.position);
-
         tempLooker.lookAt(projectile.position.clone().add(velocityVector));
-
         tempLooker.rotateY(-Math.PI / 2);
-
-        // VISUAL acompanha física
-
         projectile.quaternion.copy(tempLooker.quaternion);
-
-        // mantém física original
-
         projectileBody.quaternion.copy(tempLooker.quaternion);
       }
     } else {
-      // após ricochete
-
       projectile.quaternion.copy(projectileBody.quaternion);
     }
   }
@@ -908,117 +830,77 @@ function animate() {
   // BULLETCAM ESTABILIZADA
   // ─────────────────────────────────────────────
   else if (cameraTarget === "bullet" && projectile && projectileBody) {
-    if (pistol) pistol.visible = true;
-
+    if (pistol) pistol.visible = false;
     if (crosshair) crosshair.style.visibility = "hidden";
 
-    // ─────────────────────────────────────────
-    // DIREÇÃO DA BALA
-    // ─────────────────────────────────────────
+    // Offset orbital direto, sem lerp
+    const offsetX = bulletRadius * Math.sin(bulletYaw) * Math.cos(bulletPitch);
+    const offsetY = bulletRadius * Math.sin(bulletPitch);
+    const offsetZ = bulletRadius * Math.cos(bulletYaw) * Math.cos(bulletPitch);
 
-    const velocityDir = new THREE.Vector3(
-      projectileBody.velocity.x,
-      projectileBody.velocity.y,
-      projectileBody.velocity.z,
+    camera.position.set(
+        projectile.position.x + offsetX,
+        projectile.position.y + offsetY,
+        projectile.position.z + offsetZ
     );
 
-    const speed = velocityDir.length();
+    if (camera.position.y < 0.5) camera.position.y = 0.5;
 
-    if (speed > 0.0001) {
-      velocityDir.normalize();
-    }
+    camera.lookAt(projectile.position);
 
-    // ─────────────────────────────────────────
-    // OFFSET DINÂMICO
-    // estável após ricochete
-    // ─────────────────────────────────────────
-
-    let bulletOffset;
-
-    if (hasBounced) {
-      // Após ricochete: usa offset fixo para evitar balançada
-      if (!camera.userData.fixedOffset) {
-        camera.userData.fixedOffset = new THREE.Vector3(-8, 2, 0);
-      }
-      bulletOffset = camera.userData.fixedOffset.clone();
-    } else {
-      // Durante voo: offset dinâmico acompanha a trajetória
-      bulletOffset = velocityDir.clone().multiplyScalar(-8);
-      bulletOffset.y += 2;
-    }
-
-    // ─────────────────────────────────────────
-    // POSIÇÃO ALVO
-    // ─────────────────────────────────────────
-
-    const desiredCameraPosition = projectile.position.clone().add(bulletOffset);
-
-    // ─────────────────────────────────────────
-    // SMOOTH POSITION
-    // ─────────────────────────────────────────
-
-    if (!camera.userData.smoothPosition) {
-      camera.userData.smoothPosition = desiredCameraPosition.clone();
-    }
-
-    camera.userData.smoothPosition.lerp(desiredCameraPosition, 0.08);
-
-    camera.position.copy(camera.userData.smoothPosition);
-
-    // ─────────────────────────────────────────
-    // LOOK TARGET SUAVIZADO
-    // ─────────────────────────────────────────
-
-    if (!camera.userData.lookTarget) {
-      camera.userData.lookTarget = projectile.position.clone();
-    }
-
-    camera.userData.lookTarget.lerp(projectile.position, 0.12);
-
-    camera.lookAt(camera.userData.lookTarget);
-
-    // ─────────────────────────────────────────
-    // FINALIZA BULLETCAM
-    // ─────────────────────────────────────────
+    // Lógica de finalização (mantém igual)
+    const speed = new THREE.Vector3(
+        projectileBody.velocity.x,
+        projectileBody.velocity.y,
+        projectileBody.velocity.z
+    ).length();
 
     if ((speed < 0.2 && hasBounced) || projectileBody.position.y < -10) {
-      if (!window.returnTimer) {
-        window.returnTimer = setTimeout(() => {
-          // Adiciona última amostra de impacto
-          const finalSpd = new THREE.Vector3(
-            projectileBody.velocity.x,
-            projectileBody.velocity.y,
-            projectileBody.velocity.z
-          ).length();
-          trajectorySamples.push({
-            t: clock.elapsedTime,
-            z: projectileBody.position.z,
-            y: Math.max(0, projectileBody.position.y),
-            spd: finalSpd
-          });
-
-          // Normaliza os tempos para começar do zero
-          if (trajectorySamples.length > 0) {
-            const t0 = trajectorySamples[0].t;
-            trajectorySamples.forEach(s => s.t -= t0);
-          }
-
-          // Mostra o relatório
-          if (window.mostrarRelatorio) {
-            window.mostrarRelatorio(trajectorySamples, hitAlvo);
-          }
-
-          isFiring = false;
-          cameraTarget = "pistol";
-          // ... resto do reset original
-        }, 1000);
-      }
+        if (!window.returnTimer) {
+            window.returnTimer = setTimeout(() => {
+                if (trajectorySamples.length > 0) {
+                    const t0 = trajectorySamples[0].t;
+                    trajectorySamples.forEach(s => s.t -= t0);
+                }
+                if (window.mostrarRelatorio) {
+                    window.mostrarRelatorio(trajectorySamples, hitAlvo);
+                }
+                isFiring = false;
+                cameraTarget = "pistol";
+            }, 1000);
+        }
     }
-  }
+}
+  else if (cameraTarget === "alvo" && posicaoAlvoAcertado) {
+    if (crosshair) crosshair.style.visibility = "hidden";
+    const destino = new THREE.Vector3(
+        posicaoAlvoAcertado.x + 15,
+        posicaoAlvoAcertado.y + 5,
+        posicaoAlvoAcertado.z + 10
+    );
 
-  if (projectile.visible && !hasBounced) {
+    camera.position.lerp(destino, 0.05);
+    camera.lookAt(posicaoAlvoAcertado);
+
+    if (!window.returnTimer) {
+        window.returnTimer = setTimeout(() => {
+            if (trajectorySamples.length > 0) {
+                const t0 = trajectorySamples[0].t;
+                trajectorySamples.forEach(s => s.t -= t0);
+            }
+            if (window.mostrarRelatorio) {
+                window.mostrarRelatorio(trajectorySamples, hitAlvo);
+            }
+            isFiring = false;
+            cameraTarget = "pistol";
+        }, 2000);
+    }
+}
+
+  if (projectile.visible) {
+    if (!hasBounced || window.graficoComQuique) {
     trajectoryTimer += delta;
-    if (trajectoryTimer >= 0.25) { // coleta a cada 0.25s
+    if (trajectoryTimer >= 0.25) {
       trajectoryTimer = 0;
       const spd = new THREE.Vector3(
         projectileBody.velocity.x,
@@ -1033,7 +915,7 @@ function animate() {
       });
     }
   }
-
+  }
   renderer.render(scene, camera);
 }
 // ─── EVENTOS ────────────────────────────────────────────────────────────────
@@ -1050,22 +932,20 @@ document.addEventListener("click", (e) => {
 // ─── MOUSE LOOK ─────────────────────────────────────────────────────────────
 
 document.addEventListener("mousemove", (e) => {
-  if (
-    document.pointerLockElement === renderer.domElement &&
-    cameraTarget === "pistol" &&
-    !isFiring
-  ) {
-    // yaw removido — sem rotação horizontal
-
+  if (document.pointerLockElement === renderer.domElement && !isFiring && cameraTarget === "pistol") {
+    
     pitch -= e.movementY * sensitivity;
-
-    //ângulo -20 a 60
     pitch = Math.max(
       -20 * (Math.PI / 180),
       Math.min(60 * (Math.PI / 180), pitch),
     );
 
     config.angle = parseFloat((pitch * (180 / Math.PI)).toFixed(1));
+    
+  } else if (document.pointerLockElement === renderer.domElement && cameraTarget === "bullet") {
+    bulletYaw -= e.movementX * sensitivity;
+    bulletPitch += e.movementY * sensitivity;
+    bulletPitch = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, bulletPitch));
   }
 });
 
@@ -1113,6 +993,13 @@ window.addEventListener("mousedown", (e) => {
 
     projectileBody.velocity.set(0, 0, 0);
 
+    trajectorySamples.push({
+    t: clock.elapsedTime,
+    z: spawnPosition.z,
+    y: spawnPosition.y,
+    spd: config.v0
+    });
+
     // ─── GIRO ALEATÓRIO ───────────────────────────────────────────────
 
     projectileBody.angularVelocity.set(
@@ -1134,8 +1021,8 @@ window.addEventListener("mousedown", (e) => {
     const direction = new THREE.Vector3()
       .subVectors(targetPoint, spawnPosition)
       .normalize();
-
-    console.log(direction);
+    bulletYaw = Math.atan2(-direction.x, -direction.z); 
+    bulletPitch = 0.2;
 
     projectileBody.velocity.set(
       direction.x * config.v0,
@@ -1200,9 +1087,10 @@ init();
 // ─── GUI ────────────────────────────────────────────────────────────────────
 
 iniciarInterface(config, world, (modo) => {
+  modoVisaoPainel = modo; 
+
   if (modo === "LIVRE") {
     cameraTarget = "none";
-
     document.exitPointerLock();
   } else {
     cameraTarget = "pistol";
@@ -1212,50 +1100,90 @@ iniciarInterface(config, world, (modo) => {
 // ─── RESET ──────────────────────────────────────────────────────────────────
 
 window.forcarResetDaCena = function () {
-  document.exitPointerLock();
-  if (window.returnTimer) {
-    clearTimeout(window.returnTimer);
+    document.exitPointerLock();
 
-    window.returnTimer = null;
-  }
+for (let i = activeChunks.length - 1; i >= 0; i--) {
+    const chunk = activeChunks[i];
+    scene.remove(chunk);
+    if (chunk.userData.bodies) {
+        chunk.userData.bodies.forEach(body => {
+            world.removeBody(body);
+            if (body.helperMesh) scene.remove(body.helperMesh);
+        });
+    }
+    chunk.traverse((child) => {
+        if (!child.isMesh) return;
+        child.geometry?.dispose();
+        if (Array.isArray(child.material)) {
+            child.material.forEach(m => m.dispose());
+        } else {
+            child.material?.dispose();
+        }
+    });
+    activeChunks.splice(i, 1);
+}
+updateChunks();
 
-  isFiring = false;
+    // Limpa todos os timers
+    if (window.returnTimer) {
+        clearTimeout(window.returnTimer);
+        window.returnTimer = null;
+    }
 
-  hasBounced = false;
-
-  cameraTarget = "pistol";
-
-  // RESGATA A ARMA
-
-  if (typeof pistol !== "undefined" && pistol && camera) {
-    camera.attach(pistol);
-
-    pistol.position.set(2, -4, -2);
-
-    pistol.rotation.set(0, 0, 0);
-  }
-
-  // RESET DA BALA
-
-  if (typeof projectileBody !== "undefined" && projectileBody && projectile) {
-    projectileBody.sleep();
-
-    projectileBody.position.set(0, -100, 0);
-
-    projectileBody.velocity.set(0, 0, 0);
-
-    projectileBody.angularVelocity.set(0, 0, 0);
-
-    projectile.visible = false;
-  }
-
-  // CAMERA
-
-  if (camera) {
-    camera.position.set(config.startX, config.startY, 10);
-
+    // Reset de estado
+    isFiring = false;
+    hasBounced = false;
+    cameraTarget = "pistol";
+    posicaoAlvoAcertado = null;
+    trajectorySamples = [];
+    trajectoryTimer = 0;
+    hitAlvo = false;
     pitch = 0;
-  }
+    yaw = 0;
+
+    // Reset da bala
+    if (projectileBody && projectile) {
+        projectileBody.linearDamping = 0.01;
+        projectileBody.wakeUp();
+        projectileBody.position.set(0, -100, 0);
+        projectileBody.velocity.set(0, 0, 0);
+        projectileBody.angularVelocity.set(0, 0, 0);
+        projectileBody.fixedRotation = true;
+        projectileBody.updateMassProperties();
+        projectileBody.sleep();
+        projectile.visible = false;
+    }
+
+    // Resgata a pistola
+    if (pistol && camera) {
+        camera.attach(pistol);
+        pistol.position.set(2, -4, -2);
+        pistol.rotation.set(0, 0, 0);
+        pistol.visible = true;
+    }
+
+    // Reset da câmera
+    if (camera) {
+        camera.position.set(config.startX, config.startY, 10);
+        camera.rotation.set(0, 0, 0, "YXZ");
+        camera.userData.smoothPosition = null;
+        camera.userData.lookTarget = null;
+    }
+
+    // Reset dos alvos
+    activeChunks.forEach(chunk => {
+        if (!chunk.userData.bodies) return;
+        chunk.userData.bodies.forEach(body => {
+            body.jaFoiAcertado = false;
+            if (body.meshVisual) {
+                body.meshVisual.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        child.material.color.setHex(0xffffff);
+                    }
+                });
+            }
+        });
+    });
 };
 
 // ─── CONTROLE DE PITCH VIA GUI ──────────────────────────────────────────────
@@ -1265,4 +1193,24 @@ window.atualizarPitchPelaInterface = function (anguloEmGraus) {
     const clampado = Math.max(-20, Math.min(60, anguloEmGraus));
     pitch = clampado * (Math.PI / 180);
   }
+};
+
+window.recarregarChunks = function () {
+    const mostrar = window.Alvos !== false;
+
+    activeChunks.forEach(chunk => {
+        if (!chunk.userData.bodies) return;
+        chunk.userData.bodies.forEach(body => {
+            if (body.meshVisual) {
+                body.meshVisual.visible = mostrar;
+            }
+            if (mostrar) {
+                if (!world.bodies.includes(body)) {
+                    world.addBody(body);
+                }
+            } else {
+                world.removeBody(body);
+            }
+        });
+    });
 };
