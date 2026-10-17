@@ -1,28 +1,36 @@
-Simulador de Tiro 3D (Three.js & Cannon.js)
-Um simulador de estande de tiro em primeira pessoa (FPS) focado em balística e geração procedural, desenvolvido diretamente no navegador utilizando Three.js para renderização 3D e Cannon.js para simulação física.
+# Simulador Balístico 3D
 
-🎯 Sobre o Projeto
-Este projeto é uma experiência de tiro ao alvo 3D que gera o cenário proceduralmente (em "chunks") à medida que o jogador avança. O grande diferencial é o sistema de física realista: as balas são afetadas por gravidade (queda), exigindo que o atirador compense a mira para acertar alvos a longas distâncias (100m, 200m, 400m+).
+Um ambiente de simulação de tiro em primeira pessoa (FPS) executado nativamente no navegador. O projeto foi desenvolvido com foco no estudo de balística computacional e geração procedural de cenários, explorando a integração entre a pipeline de renderização do **Three.js** e o motor de simulação de corpos rígidos do **Cannon.js**.
 
-✨ Funcionalidades
-Mundo Procedural: O mapa é gerado e destruído dinamicamente em blocos (chunks) ao redor do jogador para otimizar o desempenho.
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/6fa663ab-84bd-4789-a2fc-679b62bfa43a" width="45%" />
+  <img src="https://github.com/user-attachments/assets/f4086f6a-9fcc-4937-b899-ea5a3f05fabf" width="45%" />
+  
+</div>
 
-Física de Balística Realista: Os projéteis possuem cálculo de trajetória com queda gravitacional e influências ambientais em tempo real.
+## Arquitetura
 
-Modelos 3D Customizados: Carregamento assíncrono de alvos em formato .obj e texturas mapeadas por arquivos .mtl.
+Diferente de shooters arcades que utilizam *raycasting* linear para detecção de acertos, este simulador implementa física realística para cada projétil disparado, operando sobre um mundo gerado dinamicamente.
 
-Hitboxes Autoajustáveis: O motor físico usa caixas de colisão calculadas com exatidão sobre os modelos visuais, incluindo ajuste diagonal para superfícies inclinadas.
+* **Geração Procedural:** O cenário é instanciado e destruído dinamicamente em blocos (*chunks*) com base nas coordenadas do jogador. Esta técnica de culling otimiza o uso de memória e processamento, permitindo a exploração contínua sem degradação do *framerate*.
+* **Física Aplicada e Balística:** Os projéteis possuem massa e são afetados pela gravidade em tempo real. O comportamento balístico exige que o operador calcule e compense ativamente a queda do projétil (*bullet drop*) para engajar alvos a longas distâncias (100m, 200m, 400m+).
+* **Colisões (Hitboxes):** O carregamento de modelos 3D (`.obj` e mapas de materiais `.mtl`) ocorre de forma assíncrona. O motor físico calcula algoritmicamente as malhas de colisão para envelopar os modelos visuais de forma exata, garantindo detecção precisa mesmo em superfícies diagonais ou irregulares.
+* **Ferramental de Debug/Raio-X:** Sistema nativo integrado para visualização e calibração da física. Ativa a renderização dos *wireframes* de colisão sobrepostos aos modelos renderizados, facilitando o isolamento de bugs de contato.
+* **Câmera:** Gerenciamento fluido entre diferentes contextos de visualização, permitindo a transição livre entre a inspeção de ambiente (`OrbitControls`) e a operação travada em primeira pessoa (`PointerLockControls`).
 
-Modo Debug/Raio-X: Sistema integrado para visualização e calibração das hitboxes (wireframe cyan) diretamente na tela de jogo.
+## Gráfico Balístico Interativo
 
-Controles Imersivos: Transição fluida entre visão de câmera livre (OrbitControls) e mira travada em primeira pessoa (PointerLockControls).
+O simulador conta com um sistema de telemetria e gráficos em tempo real (destacado na terceira imagem da interface), projetado para fornecer feedback analítico imediato sobre o comportamento dos disparos e a performance da simulação. 
 
-🛠️ Tecnologias Utilizadas
-HTML5 / CSS3 / JavaScript (ES6)
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/2382f569-47ee-4f99-94bc-5af257c5788a" width="70%" alt="Gráfico Interativo e Telemetria do Simulador" />
+</div>
 
-Three.js: Renderização gráfica, iluminação, e gerenciamento de malhas 3D.
 
-Cannon.js: Motor de física para detecção de colisões, gravidade e rigid bodies.
-<img width="1313" height="627" alt="image" src="https://github.com/user-attachments/assets/6fa663ab-84bd-4789-a2fc-679b62bfa43a" />
-<img width="1311" height="623" alt="image" src="https://github.com/user-attachments/assets/f4086f6a-9fcc-4937-b899-ea5a3f05fabf" />
-<img width="1305" height="621" alt="image" src="https://github.com/user-attachments/assets/2382f569-47ee-4f99-94bc-5af257c5788a" />
+## Stack Tecnológico
+
+A aplicação foi construída utilizando tecnologias web padrão, sem dependência de engines compiladas (como Unity ou Unreal), rodando inteiramente via JavaScript no lado do cliente.
+
+* **JavaScript (ES6+)**
+* **Three.js:** Renderização WebGL, manipulação de malhas, luzes e shaders.
+* **Cannon.js:** Detecção de colisão, física de corpos rígidos e aplicação de vetores de força.
