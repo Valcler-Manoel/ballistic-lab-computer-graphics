@@ -25,7 +25,7 @@ Diferente de shooters arcades que utilizam *raycasting* linear para detecção d
 
 ## Gráfico Balístico Interativo
 
-O simulador conta com um sistema de telemetria e gráficos em tempo real (destacado na terceira imagem da interface), projetado para fornecer feedback analítico imediato sobre o comportamento dos disparos e a performance da simulação. 
+O simulador conta com um sistema gráficos em tempo real, projetado para fornecer feedback analítico imediato sobre o comportamento dos disparos e a performance da simulação. 
 
 <div align="center">
   <img src="https://github.com/user-attachments/assets/2382f569-47ee-4f99-94bc-5af257c5788a" width="70%" alt="Gráfico Interativo e Telemetria do Simulador" />
@@ -34,7 +34,7 @@ O simulador conta com um sistema de telemetria e gráficos em tempo real (destac
 
 ## Stack Tecnológico
 
-A aplicação foi construída utilizando tecnologias web padrão, sem dependência de engines compiladas (como Unity ou Unreal), rodando inteiramente via JavaScript no lado do cliente.
+A aplicação foi construída utilizando tecnologias web padrão, sem dependência de engines compiladas, rodando inteiramente via JavaScript no lado do cliente.
 
 * **JavaScript (ES6+)**
 * **Three.js:** Renderização WebGL, manipulação de malhas, luzes e shaders.
